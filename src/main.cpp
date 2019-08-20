@@ -6,6 +6,7 @@
 #include <std_msgs/Float64.h>
 #include <Servo.h>
 #include <A1335Utils.h>
+#include <DualMAX14870MotorShield.h>
 
 
 #include <sensor_msgs/JointState.h>
@@ -15,8 +16,12 @@
 #define HAND_MOTOR_ID 71
 #define WRIST_MOTOR_ID 70
 #define JOINT_NAME "elbow_right"
-#define SERVO_PIN 13
-
+#define SERVO_PIN D7
+#define DC_PWM_PIN D6
+#define DC_DIR_PIN D5
+#define DC_EN_PIN D8
+#define DC_FAULT_PIN 2
+#define LED_PIN 16
 //////////////////////
 // WiFi Definitions //
 //////////////////////
@@ -28,6 +33,27 @@ IPAddress ip_address;
 int status = WL_IDLE_STATUS;
 
 WiFiClient client;
+
+DualMAX14870MotorShield motors(DC_DIR_PIN, DC_PWM_PIN, 50, 50, DC_EN_PIN, DC_FAULT_PIN);
+
+void stopIfFault()
+{
+  if (motors.getFault())
+  {
+    Serial.println("DC motors fault");
+    while (1)
+    {
+      digitalWrite(LED_PIN, HIGH);
+      delay(100);
+      digitalWrite(LED_PIN, LOW);
+      delay(100);
+    }
+  }
+}
+
+// void setupMotors() {
+//   motors = DualMax14870MotorShield(DC_DIR_PIN, DC_PWM_PIN, 16, 16, 16, DC_FAULT_PIN);
+// }
 
 class WiFiHardware {
 
@@ -66,10 +92,67 @@ int i;
 void chatterCallback(const roboy_middleware_msgs::MotorCommand& msg) {
     for (int i=0; i<(sizeof(msg.motors)/sizeof(*msg.motors)); i++) {
       if (msg.motors[i] == WRIST_MOTOR_ID) {
+        Serial.print("Got servo setpoint: ");
+        Serial.println(msg.set_points[i]);
         myservo.write(msg.set_points[i]);
       }
       else if (msg.motors[i] == HAND_MOTOR_ID) {
-        // TODO dc motor
+        // motors.enableDrivers();
+        // motors.setM1Speed(100);
+        // stopIfFault();
+        // delay(1000);
+        // motors.setM2Speed(-100);
+        // stopIfFault();
+
+        Serial.print("Got DC setpoint: ");
+        Serial.println(msg.set_points[i]);
+
+        //
+        digitalWrite(DC_EN_PIN, LOW);
+        digitalWrite(DC_PWM_PIN, HIGH);
+        if (msg.set_points[i] > 0) {
+          digitalWrite(DC_DIR_PIN, HIGH);
+        }
+        else {
+            digitalWrite(DC_DIR_PIN, LOW);
+        }
+
+
+        delay(100);
+        digitalWrite(DC_EN_PIN, HIGH);
+
+        // pinMode(DC_PWM_PIN, OUTPUT);
+        // digitalWrite(DC_PWM_PIN, HIGH);
+        // pinMode(DC_DIR_PIN, OUTPUT);
+        // digitalWrite(DC_DIR_PIN, HIGH);
+        // pinMode(DC_EN_PIN, OUTPUT);
+        // digitalWrite(DC_EN_PIN, LOW);
+        // pinMode(DC_FAULT_PIN, INPUT_PULLUP);
+
+        // motors.setM1Speed(msg.set_points[i]);
+        // if (msg.set_points[i] >= 0) {
+        //   for (int speed = 0; speed <= msg.set_points[i]; speed++)
+        //   {
+        //     motors.setM1Speed(speed);
+        //     // stopIfFault();
+        //     delay(20);
+        //   }
+        // }
+        // else {
+        //   for (int speed = 0; speed >=msg.set_points[i]; speed--)
+        //   {
+        //     motors.setM1Speed(speed);
+        //     // stopIfFault();
+        //     delay(2);
+        //   }
+        // }
+
+        // stopIfFault();
+        // delay(1000);
+        // motors.setM1Speed(0);
+        // stopIfFault();
+        // // motors.disableDrivers();
+        // motors.disableDrivers();
       }
     }
 }
@@ -102,7 +185,19 @@ void setup() {
   Serial.begin(115200);
   setupWiFi();
   delay(2000);
-  myservo.attach(SERVO_PIN);  // PWM pin
+  myservo.attach(SERVO_PIN);
+
+  pinMode(DC_PWM_PIN, OUTPUT);
+  // digitalWrite(DC_PWM_PIN, HIGH);
+  pinMode(DC_DIR_PIN, OUTPUT);
+  // digitalWrite(DC_DIR_PIN, HIGH);
+  pinMode(DC_EN_PIN, OUTPUT);
+  // digitalWrite(DC_EN_PIN, LOW);
+  // pinMode(DC_FAULT_PIN, INPUT_PULLUP);
+  // delay(10000);
+
+  // setupMotors();
+
 
   int8 length = 1;
 
@@ -128,11 +223,14 @@ void setup() {
 }
 
 void loop() {
+
+
   readDeviceState(0xF, &state);
   Serial.print(F("    Angle:  "));
   Serial.println(state.angle);
   rosmsg.position[0] = state.angle;
   elbow_pub.publish(&rosmsg);
   nh.spinOnce();
+
   delay(500);
 }
