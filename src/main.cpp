@@ -14,39 +14,23 @@
 #define HAND_MOTOR_ID 71
 #define WRIST_MOTOR_ID 70
 #define JOINT_NAME "elbow_right"
-#define SERVO_PIN D7
-#define DC_PWM_PIN D6
-#define DC_DIR_PIN D5
-#define DC_EN_PIN D8
+#define SERVO_PIN D0
+#define DC_PWM_PIN D3
+#define DC_DIR_PIN D4
+// #define DC_EN_PIN D8
 
 //////////////////////
 // WiFi Definitions //
 //////////////////////
-const char* ssid = "roboy";
+const char* ssid = "roboyRickshaw";
 const char* password = "wiihackroboy";
 
-IPAddress server(192, 168, 0, 134); // ip of your ROS server
+IPAddress server(192, 168, 0, 105); // ip of your ROS server
 IPAddress ip_address;
 int status = WL_IDLE_STATUS;
 
 WiFiClient client;
 
-DualMAX14870MotorShield motors(DC_DIR_PIN, DC_PWM_PIN, 50, 50, DC_EN_PIN, DC_FAULT_PIN);
-
-void stopIfFault()
-{
-  if (motors.getFault())
-  {
-    Serial.println("DC motors fault");
-    while (1)
-    {
-      digitalWrite(LED_PIN, HIGH);
-      delay(100);
-      digitalWrite(LED_PIN, LOW);
-      delay(100);
-    }
-  }
-}
 
 class WiFiHardware {
 
@@ -96,18 +80,23 @@ void chatterCallback(const roboy_middleware_msgs::MotorCommand& msg) {
         Serial.println(msg.set_points[i]);
 
 
-        digitalWrite(DC_EN_PIN, LOW);
+        // digitalWrite(DC_EN_PIN, LOW);
         digitalWrite(DC_PWM_PIN, HIGH);
 
         if (msg.set_points[i] > 0) {
           digitalWrite(DC_DIR_PIN, HIGH);
         }
+        else if (msg.set_points[i] == 0) {
+          digitalWrite(DC_PWM_PIN, LOW);
+          digitalWrite(DC_DIR_PIN, LOW);
+        }
+        // else if(msg.set_points[i]>)
         else {
             digitalWrite(DC_DIR_PIN, LOW);
         }
 
         delay(300);
-        digitalWrite(DC_EN_PIN, HIGH);
+        // digitalWrite(DC_EN_PIN, HIGH);
 
       }
     }
@@ -145,7 +134,7 @@ void setup() {
 
   pinMode(DC_PWM_PIN, OUTPUT);
   pinMode(DC_DIR_PIN, OUTPUT);
-  pinMode(DC_EN_PIN, OUTPUT);
+  // pinMode(DC_EN_PIN, OUTPUT);
 
   int8 length = 1;
 
@@ -168,17 +157,31 @@ void setup() {
   nh.initNode();
   nh.subscribe(sub);
   nh.advertise(elbow_pub);
+  nh.spinOnce();
+  delay(2000);
 }
 
 void loop() {
-
-
   readDeviceState(0xF, &state);
   Serial.print(F("    Angle:  "));
   Serial.println(state.angle);
-  rosmsg.position[0] = state.angle;
-  elbow_pub.publish(&rosmsg);
-  nh.spinOnce();
+  // if (nh.connected()) {
+    rosmsg.position[0] = state.angle;
+    elbow_pub.publish(&rosmsg);
+    nh.spinOnce();
+  // } else {
+  //   delay(10000);
+  //   ESP.restart();
+  //  }
+  //
+  //   Serial.println("ROS not connected. Trying to reconnect...");
+  //   nh.initNode();
+  //   nh.subscribe(sub);
+  //   nh.advertise(elbow_pub);
+  //   nh.spinOnce();
+  //   delay(10000);
+  //
+  // }
 
   delay(500);
 }
