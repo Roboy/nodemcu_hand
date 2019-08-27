@@ -14,6 +14,9 @@
 #include <roboy_cognition_msgs/RecognizedFaces.h>
 #include <roboy_middleware_msgs/ControlMode.h>
 
+#define LOGGING 1
+#define SPIN_PERIOD 200
+
 #define BODY_PART_ID 6
 
 #define MYOBRICK0_ID 0
@@ -21,7 +24,9 @@
 #define WRIST_MOTOR_ID 2
 #define HAND_MOTOR_ID 3
 
-#define JOINT_NAME "elbow_right"
+#define ELBOW_JOINT_NAME "elbow_right"
+#define WRIST_JOINT_NAME "wrist_right"
+
 #define SERVO_PIN D0
 #define DC_PWM_PIN D3
 #define DC_DIR_PIN D4
@@ -86,31 +91,41 @@ class WiFiHardware {
   }
 };
 
-
 void motorCommandCallback(const roboy_middleware_msgs::MotorCommand& msg) {
     if (msg.id == BODY_PART_ID) {
       for (int i=0; i<(sizeof(msg.motors)/sizeof(*msg.motors)); i++) {
         if (msg.motors[i] == MYOBRICK0_ID) {
-          Serial.print("Got myobrick 0 setpoint: ");
-          Serial.println(msg.set_points[i]);
+          if (LOGGING) {
+            Serial.print("Got myobrick 0 setpoint: ");
+            Serial.println(msg.set_points[i]);
+          }
+
           myo_setpoint[0] = msg.set_points[i];
         }
         else if (msg.motors[i] == MYOBRICK1_ID) {
-          Serial.print("Got myobrick 1 setpoint: ");
-          Serial.println(msg.set_points[i]);
+          if (LOGGING) {
+            Serial.print("Got myobrick 1 setpoint: ");
+            Serial.println(msg.set_points[i]);
+          }
+
           myo_setpoint[1] = msg.set_points[i];
         }
 
         else if (msg.motors[i] == WRIST_MOTOR_ID) {
-          Serial.print("Got servo setpoint: ");
-          Serial.println(msg.set_points[i]);
+          if (LOGGING) {
+
+            Serial.print("Got servo setpoint: ");
+            Serial.println(msg.set_points[i]);
+          }
           myservo.write(msg.set_points[i]);
           servo_setpoint = msg.set_points[i];
         }
 
         else if (msg.motors[i] == HAND_MOTOR_ID) {
-          Serial.print("Got DC setpoint: ");
-          Serial.println(msg.set_points[i]);
+          if (LOGGING) {
+            Serial.print("Got DC setpoint: ");
+            Serial.println(msg.set_points[i]);
+          }
           // digitalWrite(DC_EN_PIN, LOW);
           digitalWrite(DC_PWM_PIN, HIGH);
 
@@ -136,21 +151,29 @@ void controlModeCallback(const roboy_middleware_msgs::ControlMode::Request& req,
     if (req.motor_id == NULL) {
       switch (req.control_mode) {
         case POSITION:
+        if (LOGGING) {
+
           Serial.println("Switching all motors to POSITION");
-          for (int i=0; i<2; i++) {
+
+        }
+        for (int i=0; i<2; i++) {
             control_mode[i] = POSITION;
             myo_setpoint[i] = req.set_point;
           }
           break;
         case DIRECT_PWM:
-        Serial.println("Switching all motors to DIRECT_PWM");
+        if (LOGGING) {
+          Serial.println("Switching all motors to DIRECT_PWM");
+        }
           for (int i=0; i<2; i++) {
             control_mode[i] = DIRECT_PWM;
             myo_setpoint[i] = req.set_point;
           }
             break;
         default:
-            Serial.println("Unknown control mode for ESP. Only position or direct_pwm available");
+        if (LOGGING) {
+          Serial.println("Unknown control mode for ESP. Only position or direct_pwm available");
+        }
             // return false;
       }
     }
@@ -158,12 +181,16 @@ void controlModeCallback(const roboy_middleware_msgs::ControlMode::Request& req,
     else {
       for (int i=0; i<(sizeof(req.motor_id)/sizeof(req.motor_id[0])); i++) {
         if (req.motor_id[i] == MYOBRICK0_ID) {
-          Serial.println("Switching motor 8 to POSITION");
+          if (LOGGING) {
+            Serial.println("Switching motor 8 to POSITION");
+          }
           control_mode[0] = req.control_mode;
           myo_setpoint[0] = req.set_point;
         }
         else if (req.motor_id[i] == MYOBRICK1_ID) {
-          Serial.println("Switching motor 9 to POSITION");
+          if (LOGGING) {
+            Serial.println("Switching motor 9 to POSITION");
+          }
             control_mode[1] = req.control_mode;
             myo_setpoint[1] = req.set_point;
           }
@@ -172,7 +199,6 @@ void controlModeCallback(const roboy_middleware_msgs::ControlMode::Request& req,
 }
     // return true;
 }
-
 
 void myobrickLoop() {
   for(int motor=0;motor<2;motor++){
@@ -250,31 +276,41 @@ ros::ServiceServer<roboy_middleware_msgs::ControlMode::Request, roboy_middleware
 sensor_msgs::JointState rosmsg;
 std_msgs::Int16 wrist_msg;
 roboy_middleware_msgs::MotorStatus motor_status_msg;
-ros::Publisher elbow_pub("/joint_states", &rosmsg);
-ros::Publisher wrist_pub("/roboy/middleware/wrist", &wrist_msg);
+ros::Publisher joint_states_pub("/external_joint_states", &rosmsg);
+// ros::Publisher wrist_pub("/roboy/middleware/wrist", &wrist_msg);
 ros::Publisher motor_status_pub("/roboy/middleware/MotorStatus", &motor_status_msg);
 
 ros::NodeHandle_<WiFiHardware> nh;
+long last_spin = 0;
 
 void setupWiFi()
 {
   WiFi.begin(ssid, password);
-  Serial.print("\nConnecting to "); Serial.println(ssid);
+
+  if (LOGGING) {
+    Serial.print("\nConnecting to "); Serial.println(ssid);
+  }
   uint8_t i = 0;
   while (WiFi.status() != WL_CONNECTED && i++ < 20) delay(500);
   if(i == 21){
-    Serial.print("Could not connect to"); Serial.println(ssid);
+    if (LOGGING) {
+      Serial.print("Could not connect to"); Serial.println(ssid);
+    }
     while(1) delay(500);
   }
-  Serial.print("Ready! Use ");
-  Serial.print(WiFi.localIP());
-  Serial.println(" to access client");
+  if (LOGGING) {
+    Serial.print("Ready! Use ");
+    Serial.print(WiFi.localIP());
+    Serial.println(" to access client");
+  }
 }
 
 void setup() {
   Wire.begin();
   Wire.setClock(400000);
-  Serial.begin(115200);
+  if (LOGGING) {
+    Serial.begin(115200);
+  }
   setupWiFi();
   delay(2000);
 
@@ -293,7 +329,7 @@ void setup() {
     digitalWrite(ss_n[motor],HIGH);
   }
 
-  int8 length = 1;
+  int8 length = 2;
 
   rosmsg.name_length = length;
   rosmsg.position_length = length;
@@ -307,10 +343,12 @@ void setup() {
   {
       rosmsg.name[i] = (char*) calloc(20, sizeof(char));
   }
-  rosmsg.name[0] = JOINT_NAME;
-  rosmsg.velocity[0] = 0.0;
-  rosmsg.effort[0] = 0.0;
-
+  rosmsg.name[0] = ELBOW_JOINT_NAME;
+  rosmsg.name[1] = WRIST_JOINT_NAME;
+  for (int i=0; i<length; i++) {
+    rosmsg.velocity[i] = 0.0;
+    rosmsg.effort[i] = 0.0;
+  }
 
   length = 2;
   motor_status_msg.id = BODY_PART_ID;
@@ -326,8 +364,8 @@ void setup() {
 
   nh.initNode();
   nh.subscribe(sub);
-  nh.advertise(elbow_pub);
-  nh.advertise(wrist_pub);
+  nh.advertise(joint_states_pub);
+  // nh.advertise(wrist_pub);
   nh.advertise(motor_status_pub);
   nh.advertiseService(controlModeServer);
   nh.spinOnce();
@@ -338,40 +376,24 @@ void setup() {
 void loop() {
   myobrickLoop();
 
-  readDeviceState(0xF, &state);
-  // Serial.print(F("    Angle:  "));
-  // Serial.println(state.angle);
-  // if (nh.connected()) {
+  long now = millis();
+  if (now - last_spin > SPIN_PERIOD) {
+    readDeviceState(0xF, &state);
 
-  rosmsg.position[0] = state.angle;
-  elbow_pub.publish(&rosmsg);
+    rosmsg.position[0] = state.angle;
+    rosmsg.position[1] = servo_setpoint;
+    joint_states_pub.publish(&rosmsg);
 
-  wrist_msg.data = servo_setpoint;
-  wrist_pub.publish(&wrist_msg);
+    for (int i=0; i<2; i++) {
+      motor_status_msg.position[i] = position[i];
+      motor_status_msg.velocity[i] = velocity[i];
+      motor_status_msg.pwm_ref[i] = pwmRef[i];
+      motor_status_msg.current[i] = current[i];
+    }
+    motor_status_pub.publish(&motor_status_msg);
 
-  for (int i=0; i<2; i++) {
-    motor_status_msg.position[i] = position[i];
-    motor_status_msg.velocity[i] = velocity[i];
-    motor_status_msg.pwm_ref[i] = pwmRef[i];
-    motor_status_msg.current[i] = current[i];
+    nh.spinOnce();
+    last_spin = now;
   }
-  motor_status_pub.publish(&motor_status_msg);
 
-
-  nh.spinOnce();
-  // } else {
-  //   delay(10000);
-  //   ESP.restart();
-  //  }
-  //
-  //   Serial.println("ROS not connected. Trying to reconnect...");
-  //   nh.initNode();
-  //   nh.subscribe(sub);
-  //   nh.advertise(elbow_pub);
-  //   nh.spinOnce();
-  //   delay(10000);
-  //
-  // }
-
-  delay(10);
 }
