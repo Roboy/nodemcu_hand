@@ -55,7 +55,7 @@ int i;
 const char* ssid = "roboy";
 const char* password = "wiihackroboy";
 
-IPAddress server(192, 168, 0, 134); // ip of your ROS server
+IPAddress server(192, 168, 0, 114); // ip of your ROS server
 IPAddress ip_address;
 int status = WL_IDLE_STATUS;
 
@@ -92,112 +92,12 @@ class WiFiHardware {
 };
 
 void motorCommandCallback(const roboy_middleware_msgs::MotorCommand& msg) {
-    if (msg.id == BODY_PART_ID) {
-      for (int i=0; i<(sizeof(msg.motors)/sizeof(*msg.motors)); i++) {
-        if (msg.motors[i] == MYOBRICK0_ID) {
-          if (LOGGING) {
-            Serial.print("Got myobrick 0 setpoint: ");
-            Serial.println(msg.set_points[i]);
-          }
 
-          myo_setpoint[0] = msg.set_points[i];
-        }
-        else if (msg.motors[i] == MYOBRICK1_ID) {
-          if (LOGGING) {
-            Serial.print("Got myobrick 1 setpoint: ");
-            Serial.println(msg.set_points[i]);
-          }
-
-          myo_setpoint[1] = msg.set_points[i];
-        }
-
-        else if (msg.motors[i] == WRIST_MOTOR_ID) {
-          if (LOGGING) {
-
-            Serial.print("Got servo setpoint: ");
-            Serial.println(msg.set_points[i]);
-          }
-          myservo.write(msg.set_points[i]);
-          servo_setpoint = msg.set_points[i];
-        }
-
-        else if (msg.motors[i] == HAND_MOTOR_ID) {
-          if (LOGGING) {
-            Serial.print("Got DC setpoint: ");
-            Serial.println(msg.set_points[i]);
-          }
-          // digitalWrite(DC_EN_PIN, LOW);
-          digitalWrite(DC_PWM_PIN, HIGH);
-
-          if (msg.set_points[i] > 0) {
-            digitalWrite(DC_DIR_PIN, HIGH);
-          }
-          else if (msg.set_points[i] == 0) {
-            digitalWrite(DC_PWM_PIN, LOW);
-            digitalWrite(DC_DIR_PIN, LOW);
-          }
-          else {
-              digitalWrite(DC_DIR_PIN, LOW);
-          }
-
-          delay(100);
-
-        }
-      }
-    }
 }
 
 void controlModeCallback(const roboy_middleware_msgs::ControlMode::Request& req, roboy_middleware_msgs::ControlMode::Response& res) {
-    if (req.motor_id == NULL) {
-      switch (req.control_mode) {
-        case POSITION:
-        if (LOGGING) {
 
-          Serial.println("Switching all motors to POSITION");
 
-        }
-        for (int i=0; i<2; i++) {
-            control_mode[i] = POSITION;
-            myo_setpoint[i] = req.set_point;
-          }
-          break;
-        case DIRECT_PWM:
-        if (LOGGING) {
-          Serial.println("Switching all motors to DIRECT_PWM");
-        }
-          for (int i=0; i<2; i++) {
-            control_mode[i] = DIRECT_PWM;
-            myo_setpoint[i] = req.set_point;
-          }
-            break;
-        default:
-        if (LOGGING) {
-          Serial.println("Unknown control mode for ESP. Only position or direct_pwm available");
-        }
-            // return false;
-      }
-    }
-
-    else {
-      for (int i=0; i<(sizeof(req.motor_id)/sizeof(req.motor_id[0])); i++) {
-        if (req.motor_id[i] == MYOBRICK0_ID) {
-          if (LOGGING) {
-            Serial.println("Switching motor 8 to POSITION");
-          }
-          control_mode[0] = req.control_mode;
-          myo_setpoint[0] = req.set_point;
-        }
-        else if (req.motor_id[i] == MYOBRICK1_ID) {
-          if (LOGGING) {
-            Serial.println("Switching motor 9 to POSITION");
-          }
-            control_mode[1] = req.control_mode;
-            myo_setpoint[1] = req.set_point;
-          }
-    }
-
-}
-    // return true;
 }
 
 void myobrickLoop() {
@@ -369,7 +269,9 @@ void setup() {
   nh.advertise(motor_status_pub);
   nh.advertiseService(controlModeServer);
   nh.spinOnce();
-  delay(2000);
+
+  delay(5000);
+  Serial.println("ros initialized");
 }
 
 
